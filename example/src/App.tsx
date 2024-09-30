@@ -1,18 +1,87 @@
 import * as React from 'react';
 
-import { StyleSheet, View, Text } from 'react-native';
-import { multiply } from 'hyperswitch-samsung-pay';
+import { StyleSheet, View, Button } from 'react-native';
+import {
+  checkSamsungPayValidity,
+  presentSamsungPayPaymentSheet,
+} from 'hyperswitch-samsung-pay';
 
+const Space = () => <View style={{ marginTop: 10 }} />;
 export default function App() {
-  const [result, setResult] = React.useState<number | undefined>();
+  const sessionToken = {
+    wallet_name: 'samsung_pay',
+    version: '2',
+    service_id: 'YOUR_SERVICE_ID',
+    order_number: 'paySFQabVDSpil6sXalccuE',
+    merchant: {
+      name: 'Hyperswitch',
+      url: 'hyperswitch-demo-store.netlify.app',
+      country_code: 'IN',
+    },
+    amount: {
+      option: 'FORMAT_TOTAL_PRICE_ONLY',
+      currency_code: 'USD',
+      total: '65.00',
+    },
+    protocol: 'PROTOCOL3DS',
+    allowed_brands: ['visa', 'masterCard', 'amex', 'discover'],
+  };
 
-  React.useEffect(() => {
-    multiply(3, 7).then(setResult);
-  }, []);
+  const obj = JSON.stringify(sessionToken);
+
+  console.log('JSON:', obj);
 
   return (
     <View style={styles.container}>
-      <Text>Result: {result}</Text>
+      {/* <Button
+        title="SamsungPay Init"
+        onPress={() =>
+          samsungPayInit(serviceId, obj, (status) => {
+            console.log(status);
+          })
+        }
+      /> */}
+      <Space />
+      <Button
+        title="Check SPAY Validiity"
+        onPress={() =>
+          checkSamsungPayValidity(obj, (status) => {
+            console.log(status);
+          })
+        }
+      />
+      {/* <Space />
+      <Button
+        title="Activate Samsung Pay"
+        onPress={() =>
+          activateSamsungPay((status) => {
+            console.log(status);
+          })
+        }
+      /> */}
+      {/* <Space />
+      <Button
+        title="Request Card Info"
+        onPress={() =>
+          requestCardInfo((status, cardBrands) => {
+            console.log(status);
+            console.log(cardBrands);
+          })
+        }
+      /> */}
+      <Space />
+      <Button
+        title="Present Samsung Pay Sheet"
+        onPress={() =>
+          presentSamsungPayPaymentSheet((status) => {
+            console.log(status);
+            if (status.message == 'success') {
+              const k = JSON.parse(status.message.toString());
+              console.log(k);
+            }
+          })
+        }
+      />
     </View>
   );
 }

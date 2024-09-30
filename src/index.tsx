@@ -1,3 +1,12 @@
+type statusType = {
+  status: String;
+  message: String;
+};
+
+type cardBrandType = {
+  cardBrands: Array<String>;
+};
+
 import { NativeModules, Platform } from 'react-native';
 
 const LINKING_ERROR =
@@ -6,7 +15,9 @@ const LINKING_ERROR =
   '- You rebuilt the app after installing the package\n' +
   '- You are not using Expo managed workflow\n';
 
-const HyperswitchSamsungPay = NativeModules.HyperswitchSamsungPay  ? NativeModules.HyperswitchSamsungPay  : new Proxy(
+const HyperswitchSamsungPay = NativeModules.HyperswitchSamsungPay
+  ? NativeModules.HyperswitchSamsungPay
+  : new Proxy(
       {},
       {
         get() {
@@ -15,6 +26,40 @@ const HyperswitchSamsungPay = NativeModules.HyperswitchSamsungPay  ? NativeModul
       }
     );
 
-export function multiply(a: number, b: number): Promise<number> {
-  return HyperswitchSamsungPay.multiply(a, b);
+export function samsungPayInit(
+  serviceId: string,
+  requestObject: string,
+  callback: (status: statusType) => void
+) {
+  return HyperswitchSamsungPay.samsungPayInit(
+    serviceId,
+    requestObject,
+    callback
+  );
 }
+
+export function checkSamsungPayValidity(
+  requestObj: string,
+  callback: (status: statusType) => void
+): Promise<boolean> {
+  return HyperswitchSamsungPay.checkSamsungPayValidity(requestObj, callback);
+}
+
+export function activateSamsungPay(callback: (status: statusType) => void) {
+  return HyperswitchSamsungPay.activateSamsungPay(callback);
+}
+
+export function requestCardInfo(
+  callback: (status: statusType, cardBrands: cardBrandType) => void
+) {
+  return HyperswitchSamsungPay.requestCardInfo(callback);
+}
+
+export function presentSamsungPayPaymentSheet(
+  callback: (status: statusType) => void
+) {
+  return HyperswitchSamsungPay.presentSamsungPayPaymentSheet(callback);
+}
+
+export const isAvailable =
+  HyperswitchSamsungPay && HyperswitchSamsungPay.checkSamsungPayValidity;
