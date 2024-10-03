@@ -2,12 +2,9 @@ package com.hyperswitchsamsungpay
 
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Callback
-import com.facebook.react.bridge.ReadableArray
-import com.facebook.react.bridge.WritableArray
 import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeAmountControl
 import com.samsung.android.sdk.samsungpay.v2.PartnerInfo
 import com.samsung.android.sdk.samsungpay.v2.SamsungPay
@@ -16,16 +13,12 @@ import com.samsung.android.sdk.samsungpay.v2.StatusListener
 import com.samsung.android.sdk.samsungpay.v2.payment.CardInfo
 import com.samsung.android.sdk.samsungpay.v2.payment.CustomSheetPaymentInfo
 import com.samsung.android.sdk.samsungpay.v2.payment.PaymentManager
-import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AddressControl
-import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AmountBoxControl
-import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AmountConstants
 import com.samsung.android.sdk.samsungpay.v2.payment.sheet.CustomSheet
-import com.samsung.android.sdk.samsungpay.v2.payment.sheet.SheetItemType
 import org.json.JSONArray
 import org.json.JSONObject
 
 
-class SamsungPayValidator {
+class SamsungPayController {
 
   companion object {
     lateinit var context: Context
@@ -33,6 +26,7 @@ class SamsungPayValidator {
     lateinit var partnerInfo: PartnerInfo
     lateinit var bundle: Bundle
     lateinit var samsungPayDTO: SamsungPayDTO
+    lateinit var paymentManager: PaymentManager
 
     @JvmStatic
     fun setSamsungPayContext(context: Context) {
@@ -98,7 +92,6 @@ class SamsungPayValidator {
           when (status) {
             SamsungPay.SPAY_NOT_SUPPORTED -> {
               // Samsung Pay is not supported
-//              Log.i("SPAY", "not supported")
               map.putString("status", "failure")
               map.putString("message", "Samsung Pay is not supported on this device")
               callback.invoke(map)
@@ -125,14 +118,12 @@ class SamsungPayValidator {
 
             SamsungPay.SPAY_READY -> {
 //              Log.i("SPAY", "ready")
-              map.putString("status", "success")
-              map.putString("message", "Samsung Pay is ready")
-              callback.invoke(map)
+              checkForSupportedCardBrands(callback)
 
             }
 
 
-            else ->{
+            else -> {
 //              Log.i("SPAY", "ready")
               map.putString("status", "failure")
               map.putString("message", "Samsung Pay is not ready")
@@ -147,7 +138,6 @@ class SamsungPayValidator {
           map.putString("status", "failure")
           map.putString("message", "Samsung Pay is not ready")
           callback.invoke(map)
-//          Log.i("SPAY", "failed!!!!")
         }
 
       })
@@ -164,37 +154,51 @@ class SamsungPayValidator {
     }
 
     @JvmStatic
-    fun requestCardInfo(callback: Callback) {
-      val supportedCardBrandsMap = Arguments.createMap()
+    fun checkForSupportedCardBrands(callback: Callback) {
       val statusMap = Arguments.createMap()
-      val bundle = Bundle()
-      bundle.putString(
-        SamsungPay.PARTNER_SERVICE_TYPE,
-        SpaySdk.ServiceType.INAPP_PAYMENT.toString()
-      )
-
-      val partnerInfo = PartnerInfo(samsungPayDTO.serviceId, bundle)
-      val paymentManager = PaymentManager(context, partnerInfo)
+      this.paymentManager = PaymentManager(context, partnerInfo)
       val cardInfoListener = object : PaymentManager.CardInfoListener {
-        override fun onResult(p0: MutableList<CardInfo>?) {
-          var cardBrandsArray = Arguments.createArray()
+        override fun onResult(sPayCustomerCardBrands: MutableList<CardInfo>?) {
 
-          if (p0 != null) {
-            for (item in p0) {
-              cardBrandsArray.pushString(item.brand.toString())
-//              Log.i("SPAY_CARDS", item.brand.toString())
+
+          val merchantAllowCardBrandsArr =
+            Array(samsungPayDTO.allowedCardBrands.length()) { index ->
+              samsungPayDTO.allowedCardBrands.getString(index).lowercase()
             }
+
+          if (sPayCustomerCardBrands != null) {
+            for (item in sPayCustomerCardBrands) {
+
+              val sPayCardBrand = item.brand.toString().lowercase()
+
+              if (merchantAllowCardBrandsArr.contains(sPayCardBrand)) {
+                statusMap.putString("status", "success")
+                statusMap.putString("message", "Samsung Pay is ready")
+                callback.invoke(statusMap)
+                return
+              }
+
+            }
+
           }
-//          Log.i("SPAY_CARDS", p0.toString())
-          statusMap.putString("status", "success")
-          statusMap.putString("message", "Samsung Pay SDK fetched card brands successfully")
-          supportedCardBrandsMap.putArray("cardBrands", cardBrandsArray)
-          callback.invoke(statusMap, supportedCardBrandsMap)
+
+
+          statusMap.putString("status", "failure")
+          statusMap.putString(
+            "message",
+            "Samsung Pay was Ready but no supported card schemes found"
+          )
+          callback.invoke(statusMap)
+
+
         }
 
         override fun onFailure(p0: Int, p1: Bundle?) {
           statusMap.putString("status", "failure")
-          statusMap.putString("message", "Samsung Pay SDK could not fetch card brands")
+          statusMap.putString(
+            "message",
+            "Samsung Pay was Ready but Samsung Pay SDK could not fetch card brands"
+          )
           callback.invoke(statusMap)
         }
 
@@ -203,11 +207,10 @@ class SamsungPayValidator {
       paymentManager.requestCardInfo(bundle, cardInfoListener)
     }
 
+
     fun presentSamsungPayPaymentSheet(callback: Callback) {
-      val paymentManager = PaymentManager(context, partnerInfo)
+
       val map = Arguments.createMap()
-
-
       val customSheet = CustomSheet()
       val amountBoxControl = makeAmountControl(samsungPayDTO.amount)
 
@@ -254,9 +257,8 @@ class SamsungPayValidator {
           /*
            * Called when Samsung Pay creates the transaction cryptogram, which merchant app then sends
            * to merchant server or PG to complete in-app payment.
-           */try {
-//            Log.i("SPAY_CREDENTIALS", paymentCredential)
-//            Log.i("SPAY_CREDENTIALS", response.toString())
+           */
+          try {
             map.putString("status", "success")
             map.putString("message", paymentCredential)
             callback.invoke(map)
@@ -271,8 +273,6 @@ class SamsungPayValidator {
 
         override fun onFailure(errorCode: Int, errorData: Bundle) {
           // Called when an error occurs during cryptogram generation
-//          Log.i("SPAY_MERA", errorCode.toString())
-//          Log.i("SPAY_MERA", errorData.toString())
           map.putString("status", "failure")
           map.putString("response", "Samsung Pay transaction failure")
           callback.invoke(map)

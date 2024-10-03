@@ -2,13 +2,10 @@ package com.hyperswitchsamsungpay
 
 import android.app.Activity
 import android.util.Log
-import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Callback
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.bridge.Promise
-import com.samsung.android.sdk.samsungpay.v2.SamsungPay
 
 
 class HyperswitchSamsungPayModule(reactContext: ReactApplicationContext) :
@@ -32,9 +29,9 @@ class HyperswitchSamsungPayModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun checkSamsungPayValidity(requestObj: String, callback: Callback) {
     try {
-      SamsungPayValidator.parseSamsungPayInfo(requestObj, callback)
-      SamsungPayValidator.setSamsungPayContext(reactApplicationContext.currentActivity!! as Activity)
-      SamsungPayValidator.checkSamsungPayStatus(callback)
+      SamsungPayController.parseSamsungPayInfo(requestObj, callback)
+      SamsungPayController.setSamsungPayContext(reactApplicationContext.currentActivity!! as Activity)
+      SamsungPayController.checkSamsungPayStatus(callback)
     } catch (err: Exception) {
       Log.i("SPAYValidityCheckFail", err.message.toString())
     }
@@ -43,17 +40,12 @@ class HyperswitchSamsungPayModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun activateSamsungPay(callback: Callback) {
-    SamsungPayValidator.activateSamsungPay(callback)
-  }
-
-  @ReactMethod
-  fun requestCardInfo(callback: Callback) {
-    SamsungPayValidator.requestCardInfo(callback)
+    SamsungPayController.activateSamsungPay(callback)
   }
 
   @ReactMethod
   fun presentSamsungPayPaymentSheet(callback: Callback) {
-    SamsungPayValidator.presentSamsungPayPaymentSheet(callback)
+    SamsungPayController.presentSamsungPayPaymentSheet(callback)
   }
 
 
