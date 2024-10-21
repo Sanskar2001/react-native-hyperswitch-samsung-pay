@@ -216,7 +216,6 @@ class SamsungPayController {
 
       customSheet.addControl(amountBoxControl)
       val customSheetPaymentInfo = CustomSheetPaymentInfo.Builder()
-        .setMerchantId("123456")
         .setMerchantName(samsungPayDTO.merchant.name)
         .setCardHolderNameEnabled(true)
         .setRecurringEnabled(false)

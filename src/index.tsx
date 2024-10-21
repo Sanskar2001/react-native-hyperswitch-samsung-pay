@@ -1,4 +1,4 @@
-type statusType = {
+export type statusType = {
   status: String;
   message: String;
 };
@@ -61,5 +61,6 @@ export function presentSamsungPayPaymentSheet(
   return HyperswitchSamsungPay.presentSamsungPayPaymentSheet(callback);
 }
 
-export const isAvailable =
-  HyperswitchSamsungPay && HyperswitchSamsungPay.checkSamsungPayValidity;
+export const isAvailable = Boolean(
+  HyperswitchSamsungPay && HyperswitchSamsungPay.checkSamsungPayValidity
+);

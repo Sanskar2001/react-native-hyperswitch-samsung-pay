@@ -1,5 +1,5 @@
+import type { statusType } from 'lib/typescript';
 import * as React from 'react';
-
 import { StyleSheet, View, Button } from 'react-native';
 import {
   checkSamsungPayValidity,
@@ -45,7 +45,7 @@ export default function App() {
       <Button
         title="Check SPAY Validiity"
         onPress={() =>
-          checkSamsungPayValidity(obj, (status) => {
+          checkSamsungPayValidity(obj, (status: statusType) => {
             console.log(status);
           })
         }
@@ -73,7 +73,7 @@ export default function App() {
       <Button
         title="Present Samsung Pay Sheet"
         onPress={() =>
-          presentSamsungPayPaymentSheet((status) => {
+          presentSamsungPayPaymentSheet((status: statusType) => {
             console.log(status);
             if (status.message == 'success') {
               const k = JSON.parse(status.message.toString());
