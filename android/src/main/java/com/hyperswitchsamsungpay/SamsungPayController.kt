@@ -2,10 +2,13 @@ package com.hyperswitchsamsungpay
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Callback
 import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeAmountControl
+import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeBillingAddressControl
+import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeShippingAddressControl
 import com.samsung.android.sdk.samsungpay.v2.PartnerInfo
 import com.samsung.android.sdk.samsungpay.v2.SamsungPay
 import com.samsung.android.sdk.samsungpay.v2.SpaySdk
@@ -13,6 +16,7 @@ import com.samsung.android.sdk.samsungpay.v2.StatusListener
 import com.samsung.android.sdk.samsungpay.v2.payment.CardInfo
 import com.samsung.android.sdk.samsungpay.v2.payment.CustomSheetPaymentInfo
 import com.samsung.android.sdk.samsungpay.v2.payment.PaymentManager
+import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AddressControl
 import com.samsung.android.sdk.samsungpay.v2.payment.sheet.CustomSheet
 import org.json.JSONArray
 import org.json.JSONObject
@@ -26,7 +30,9 @@ class SamsungPayController {
     lateinit var partnerInfo: PartnerInfo
     lateinit var bundle: Bundle
     lateinit var samsungPayDTO: SamsungPayDTO
+    lateinit var customerBillingInfo: CustomerBillingInfo
     lateinit var paymentManager: PaymentManager
+    lateinit var billingDetailsCollectedFromSPay: PaymentDetailsBuilder
 
     @JvmStatic
     fun setSamsungPayContext(context: Context) {
@@ -35,14 +41,16 @@ class SamsungPayController {
 
     @JvmStatic
     fun parseSamsungPayInfo(requestObj: String, callback: Callback) {
-
-//      Log.i("SamsungPayJSON", requestObj)
-
       try {
         val jsonObject = JSONObject(requestObj)
         val serviceId = jsonObject.get("service_id").toString()
         val orderNo = jsonObject.get("order_number").toString()
         val protocol = jsonObject.get("protocol").toString()
+
+        val billingAddressRequired =
+          jsonObject.get("billing_address_required").toString().toBoolean()
+        val shippingAddressRequired =
+          jsonObject.get("shipping_address_required").toString().toBoolean()
 
         val merchantObj = JSONObject(jsonObject.get("merchant").toString())
 
@@ -61,7 +69,16 @@ class SamsungPayController {
         val allowedBrandsArray = JSONArray(jsonObject.get("allowed_brands").toString())
 
         this.samsungPayDTO =
-          SamsungPayDTO(serviceId, orderNo, merchant, amount, protocol, allowedBrandsArray)
+          SamsungPayDTO(
+            serviceId,
+            orderNo,
+            merchant,
+            amount,
+            protocol,
+            allowedBrandsArray,
+            billingAddressRequired,
+            shippingAddressRequired
+          )
       } catch (exception: Exception) {
         val map = Arguments.createMap()
         map.putString("status", "Error")
@@ -213,15 +230,31 @@ class SamsungPayController {
       val map = Arguments.createMap()
       val customSheet = CustomSheet()
       val amountBoxControl = makeAmountControl(samsungPayDTO.amount)
+      lateinit var billingAddressControl: AddressControl
+      lateinit var shippingAddressControl: AddressControl
+      lateinit var customSheetPaymentInfo: CustomSheetPaymentInfo
 
       customSheet.addControl(amountBoxControl)
-      val customSheetPaymentInfo = CustomSheetPaymentInfo.Builder()
+      if (samsungPayDTO.billingAddressRequired || samsungPayDTO.shippingAddressRequired) {
+        billingAddressControl = makeBillingAddressControl(amountBoxControl)
+        shippingAddressControl = makeShippingAddressControl(amountBoxControl)
+
+        customSheet.addControl(billingAddressControl)
+        customSheet.addControl(shippingAddressControl)
+      }
+
+      val customSheetPaymentInfoBuilder = CustomSheetPaymentInfo.Builder()
         .setMerchantName(samsungPayDTO.merchant.name)
         .setCardHolderNameEnabled(true)
         .setRecurringEnabled(false)
         .setOrderNumber(samsungPayDTO.orderNo)
         .setCustomSheet(customSheet)
-        .build()
+
+      if (samsungPayDTO.billingAddressRequired || samsungPayDTO.shippingAddressRequired)
+        customSheetPaymentInfoBuilder
+          .setAddressInPaymentSheet(CustomSheetPaymentInfo.AddressInPaymentSheet.NEED_BILLING_AND_SHIPPING)
+
+      customSheetPaymentInfo = customSheetPaymentInfoBuilder.build()
 
       val transactionListener = object : PaymentManager.CustomSheetTransactionInfoListener {
         // This callback is received when the user changes card on the custom payment sheet in Samsung Pay
@@ -231,8 +264,8 @@ class SamsungPayController {
            * Newly selected cardInfo is passed so merchant app can update transaction amount
            * based on different card (if needed),
            */
-          val amountBoxControl = makeAmountControl(samsungPayDTO.amount)
           customSheet.updateControl(amountBoxControl)
+
           // Call updateSheet() with AmountBoxControl; mandatory.
           try {
             paymentManager.updateSheet(customSheet)
@@ -260,7 +293,16 @@ class SamsungPayController {
           try {
             map.putString("status", "success")
             map.putString("message", paymentCredential)
-            callback.invoke(map)
+            val billingDetailsMap = Arguments.createMap()
+            if (samsungPayDTO.billingAddressRequired && ::billingDetailsCollectedFromSPay.isInitialized) {
+              billingDetailsMap.putString(
+                "billingDetails",
+                billingDetailsCollectedFromSPay.build().toJson()
+              )
+              callback.invoke(map, billingDetailsMap)
+            } else {
+              callback.invoke(map)
+            }
           } catch (e: java.lang.NullPointerException) {
 
             map.putString("status", "failure")
