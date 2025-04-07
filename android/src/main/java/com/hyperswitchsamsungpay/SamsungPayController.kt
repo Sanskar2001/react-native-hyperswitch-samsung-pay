@@ -6,6 +6,7 @@ import android.util.Log
 import android.widget.Toast
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Callback
+import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.convertIsoAlpha3ToAlpha2
 import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeAmountControl
 import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeBillingAddressControl
 import com.hyperswitchsamsungpay.SPaySheetControlUtils.Companion.makeShippingAddressControl
@@ -124,7 +125,11 @@ class SamsungPayController {
                 // Display an appropriate popup message to the user
                 samsungPay.goToUpdatePage()
               } else {
-                Toast.makeText(context, "error reason: $errorReason", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                  context,
+                  "error reason: $errorReason",
+                  Toast.LENGTH_LONG
+                ).show()
               }
 
               map.putString("status", "failure")
@@ -252,71 +257,87 @@ class SamsungPayController {
 
         customSheetPaymentInfo = customSheetPaymentInfoBuilder.build()
 
-        val transactionListener = object : PaymentManager.CustomSheetTransactionInfoListener {
-          // This callback is received when the user changes card on the custom payment sheet in Samsung Pay
-          override fun onCardInfoUpdated(selectedCardInfo: CardInfo, customSheet: CustomSheet) {
-            /*
-             * Called when the user changes card in Samsung Pay.
-             * Newly selected cardInfo is passed so merchant app can update transaction amount
-             * based on different card (if needed),
-             */
-            customSheet.updateControl(amountBoxControl)
+        val transactionListener =
+          object : PaymentManager.CustomSheetTransactionInfoListener {
+            // This callback is received when the user changes card on the custom payment sheet in Samsung Pay
+            override fun onCardInfoUpdated(
+              selectedCardInfo: CardInfo,
+              customSheet: CustomSheet
+            ) {
+              /*
+               * Called when the user changes card in Samsung Pay.
+               * Newly selected cardInfo is passed so merchant app can update transaction amount
+               * based on different card (if needed),
+               */
+              customSheet.updateControl(amountBoxControl)
 
-            // Call updateSheet() with AmountBoxControl; mandatory.
-            try {
-              paymentManager.updateSheet(customSheet)
-            } catch (e: java.lang.IllegalStateException) {
-              e.printStackTrace()
-            } catch (e: java.lang.NullPointerException) {
-              e.printStackTrace()
-            }
-          }
-
-          /*
-           * This callback is received when the payment is approved by the user and the transaction payload
-           * is generated. Payload can be an encrypted cryptogram (network token mode) or the PG's token
-           * reference ID (gateway token mode).
-           */
-          override fun onSuccess(
-            response: CustomSheetPaymentInfo,
-            paymentCredential: String,
-            extraPaymentData: Bundle
-          ) {
-            /*
-             * Called when Samsung Pay creates the transaction cryptogram, which merchant app then sends
-             * to merchant server or PG to complete in-app payment.
-             */
-            try {
-              map.putString("status", "success")
-              map.putString("message", paymentCredential)
-              val billingDetailsMap = Arguments.createMap()
-              if (samsungPayDTO.billingAddressRequired && ::billingDetailsCollectedFromSPay.isInitialized) {
-                billingDetailsMap.putString(
-                  "billingDetails",
-                  billingDetailsCollectedFromSPay.build().toJson()
-                )
-                callback.invoke(map, billingDetailsMap)
-              } else {
-                callback.invoke(map)
+              // Call updateSheet() with AmountBoxControl; mandatory.
+              try {
+                paymentManager.updateSheet(customSheet)
+              } catch (e: java.lang.IllegalStateException) {
+                e.printStackTrace()
+              } catch (e: java.lang.NullPointerException) {
+                e.printStackTrace()
               }
-            } catch (e: java.lang.NullPointerException) {
+            }
 
+            /*
+             * This callback is received when the payment is approved by the user and the transaction payload
+             * is generated. Payload can be an encrypted cryptogram (network token mode) or the PG's token
+             * reference ID (gateway token mode).
+             */
+            override fun onSuccess(
+              response: CustomSheetPaymentInfo,
+              paymentCredential: String,
+              extraPaymentData: Bundle
+            ) {
+              try {
+                val resultMap = Arguments.createMap()
+                resultMap.putString("status", "success")
+                resultMap.putString("message", paymentCredential)
+
+                val detailsMap = Arguments.createMap()
+
+                // Add shipping details if required
+                if (samsungPayDTO.shippingAddressRequired) {
+                  val shippingDetails =
+                    SPaySheetControlUtils.getShippingAddressJson(response.paymentShippingAddress)
+                  detailsMap.putString("shippingDetails", shippingDetails)
+                }
+
+                // Add billing details if required
+                if (samsungPayDTO.billingAddressRequired && ::billingDetailsCollectedFromSPay.isInitialized) {
+                  val billingDetails = billingDetailsCollectedFromSPay.build().toJson()
+                  detailsMap.putString("billingDetails", billingDetails)
+                }
+
+                // Invoke callback with merged map if it has any entries
+                if (detailsMap.keySetIterator().hasNextKey()) {
+                  callback.invoke(resultMap, detailsMap)
+                } else {
+                  callback.invoke(resultMap)
+                }
+              } catch (e: java.lang.NullPointerException) {
+
+                map.putString("status", "failure")
+                map.putString("response", "Samsung Pay transaction failure")
+                callback.invoke(map)
+                e.printStackTrace()
+              }
+            }
+
+            override fun onFailure(errorCode: Int, errorData: Bundle) {
+              // Called when an error occurs during cryptogram generation
               map.putString("status", "failure")
               map.putString("response", "Samsung Pay transaction failure")
               callback.invoke(map)
-              e.printStackTrace()
             }
           }
 
-          override fun onFailure(errorCode: Int, errorData: Bundle) {
-            // Called when an error occurs during cryptogram generation
-            map.putString("status", "failure")
-            map.putString("response", "Samsung Pay transaction failure")
-            callback.invoke(map)
-          }
-        }
-
-        paymentManager.startInAppPayWithCustomSheet(customSheetPaymentInfo, transactionListener)
+        paymentManager.startInAppPayWithCustomSheet(
+          customSheetPaymentInfo,
+          transactionListener
+        )
       } catch (err: Error) {
         map.putString("status", "failure")
         map.putString("message", err.message.toString())

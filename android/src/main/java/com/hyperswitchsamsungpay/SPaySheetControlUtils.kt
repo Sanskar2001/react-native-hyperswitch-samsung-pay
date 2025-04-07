@@ -1,6 +1,7 @@
 package com.hyperswitchsamsungpay
 
 import com.hyperswitchsamsungpay.SamsungPayController.Companion.paymentManager
+import com.samsung.android.sdk.samsungpay.v2.payment.CustomSheetPaymentInfo
 import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AddressControl
 import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AmountBoxControl
 import com.samsung.android.sdk.samsungpay.v2.payment.sheet.AmountConstants
@@ -50,6 +51,14 @@ class SPaySheetControlUtils {
     }
 
 
+    fun parseName(fullName: String): Pair<String, String> {
+      val parts = fullName.trim().split(" ")
+      val firstName = parts.getOrNull(0) ?: ""
+      val lastName = parts.getOrNull(1) ?: ""
+      return Pair(firstName, lastName)
+    }
+
+
     private fun shippingSheetUpdatedListener(amountBoxControl: AmountBoxControl): SheetUpdatedListener? {
       return SheetUpdatedListener { updatedControlId: String, customSheet: CustomSheet ->
         run {
@@ -61,10 +70,7 @@ class SPaySheetControlUtils {
 
 
           val fullName = addressControl.address.addressee
-          val parts = fullName.split(" ")
-
-          val firstName = parts.getOrNull(0) ?: ""
-          val lastName = parts.getOrNull(1) ?: ""
+          val (firstName, lastName) = parseName(fullName)
 
           val email = addressControl.address.email
 
@@ -116,7 +122,7 @@ class SPaySheetControlUtils {
       }
     }
 
-    private fun convertIsoAlpha3ToAlpha2(alpha3: String): String {
+    public fun convertIsoAlpha3ToAlpha2(alpha3: String): String {
       for (countryCode in Locale.getISOCountries()) {
         val locale = Locale("", countryCode)
         // Compare ignoring case to be more flexible
@@ -126,6 +132,24 @@ class SPaySheetControlUtils {
       }
       return ""
     }
+
+
+    public fun getShippingAddressJson(address: CustomSheetPaymentInfo.Address):String{
+      val (shippingFirstName, shippingLastName) = SPaySheetControlUtils.parseName(
+        address.addressee
+      )
+      val shippindDetails =
+        PaymentDetailsBuilder().firstName(shippingFirstName)
+          .lastName(shippingLastName).city(address.city)
+          .country(convertIsoAlpha3ToAlpha2(address.countryCode))
+          .line1(address.addressLine1)
+          .line2(address.addressLine2)
+          .zip(address.postalCode)
+          .state(address.state).build().toJson()
+
+      return shippindDetails
+    }
+
 
   }
 }
