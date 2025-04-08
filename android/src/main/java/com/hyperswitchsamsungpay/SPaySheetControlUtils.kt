@@ -145,6 +145,7 @@ class SPaySheetControlUtils {
           .line1(address.addressLine1)
           .line2(address.addressLine2)
           .zip(address.postalCode)
+          .email(address.email)
           .state(address.state).build().toJson()
 
       return shippindDetails
